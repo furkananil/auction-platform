@@ -1,15 +1,18 @@
 services:
   biddingdb:
     image: postgres:16
-    container_name: biddingdb
+    container_name: biddingdb_yeni
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
       POSTGRES_DB: ${POSTGRES_DB:-BiddingDb}
     ports:
-      - "5433:5432"
+      - "5435:5432"
+    command: ["postgres", "-c", "listen_addresses=*"]
     volumes:
-      - biddingdb_data:/var/lib/postgresql/data
+      - biddingdb_data_yeni:/var/lib/postgresql/data
+    networks:
+      - auction-net
 
   zookeeper:
     image: confluentinc/cp-zookeeper:7.6.1
@@ -19,6 +22,8 @@ services:
       ZOOKEEPER_TICK_TIME: 2000
     ports:
       - "2181:2181"
+    networks:
+      - auction-net
 
   kafka:
     image: confluentinc/cp-kafka:7.6.1
@@ -30,13 +35,15 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9093,EXTERNAL://localhost:9092
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9093,EXTERNAL://0.0.0.0:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+    networks:
+      - auction-net
 
   biddingapi:
     image: bidding-service
@@ -48,10 +55,17 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__DefaultConnection: Host=biddingdb;Port=5432;Database=${POSTGRES_DB:-BiddingDb};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-change-me}
-      Kafka__BootstrapServers: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
+      Kafka__BootstrapServers: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:9093}
     depends_on:
       - biddingdb
       - kafka
+    networks:
+      - auction-net
 
 volumes:
-  biddingdb_data:
+  biddingdb_data_yeni:
+
+networks:
+  auction-net:
+    name: auction-net
+

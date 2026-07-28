@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>Canlı Açık Artırma Test Ekranı</title>
+    <!-- SignalR CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+    <style>
+        body { font-family: monospace; background: #1e1e1e; color: #00ff00; padding: 20px; }
+        #messages { margin-top: 20px; border-top: 1px solid #555; padding-top: 10px; }
+    </style>
+</head>
+<body>
+    <h2>Bidding & Realtime Akış Testi</h2>
+    <div id="status">Bağlanıyor...</div>
+    <div style="margin-top: 12px;">
+        <label for="auctionIdInput">Auction Id:</label>
+        <input id="auctionIdInput" style="width: 420px; margin-left: 8px;" />
+        <button id="joinButton" style="margin-left: 8px;">Gruba Katıl</button>
+    </div>
+    <div id="messages"></div>
+
+    <script>
+        // Docker'da veya localde çalışan realtime servis için doğru hub adresi
+        const hubUrl = window.location.port === "5102"
+            ? "/auctionhub"
+            : "http://localhost:5102/auctionhub";
+
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl(hubUrl)
+            .withAutomaticReconnect()
+            .build();
+
+        const auctionIdInput = document.getElementById("auctionIdInput");
+        const joinButton = document.getElementById("joinButton");
+        const urlAuctionId = new URLSearchParams(window.location.search).get("auctionId");
+        const storedAuctionId = localStorage.getItem("realtime-test-auction-id");
+        const defaultAuctionId = urlAuctionId || storedAuctionId || "11111111-1111-1111-1111-111111111111";
+
+        auctionIdInput.value = defaultAuctionId;
+
+        async function joinAuctionGroup() {
+            const auctionId = auctionIdInput.value.trim();
+
+            if (!auctionId) {
+                document.getElementById("status").innerText = "Durum: Auction Id girilmedi.";
+                return;
+            }
+
+            localStorage.setItem("realtime-test-auction-id", auctionId);
+            await connection.invoke("JoinAuctionGroup", auctionId);
+            document.getElementById("status").innerText = `Durum: BAĞLI. (${hubUrl}) | Grup: ${auctionId}`;
+        }
+
+        connection.on("ReceiveNewBid", (eventData) => {
+            const msgDiv = document.getElementById("messages");
+            const newMsg = document.createElement("div");
+            newMsg.innerHTML = `> YENİ TEKLİF ALINDI! Tutar: <b>${eventData.amount} TL</b> | Kullanıcı: ${eventData.bidderId} | Auction: ${eventData.auctionId}`;
+            msgDiv.prepend(newMsg);
+        });
+
+        async function start() {
+            try {
+                await connection.start();
+                await joinAuctionGroup();
+            } catch (err) {
+                console.error("Bağlantı hatası:", err);
+                document.getElementById("status").innerText = "Durum: HATA! Konsolu kontrol et.";
+            }
+        }
+
+        joinButton.addEventListener("click", async () => {
+            try {
+                if (connection.state !== signalR.HubConnectionState.Connected) {
+                    await connection.start();
+                }
+
+                await joinAuctionGroup();
+            } catch (err) {
+                console.error("Gruba katılma hatası:", err);
+                document.getElementById("status").innerText = "Durum: Grup katılım hatası. Konsolu kontrol et.";
+            }
+        });
+
+        start();
+    </script>
+</body>
+</html>

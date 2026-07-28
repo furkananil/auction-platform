@@ -1,0 +1,42 @@
+# Build outputs
+**/bin/
+**/obj/
+
+# Local PostgreSQL data created by docker compose
+BiddingService/biddingdb_data/
+
+# Visual Studio / Rider / VS Code
+.vs/
+.idea/
+*.user
+*.userosscache
+*.suo
+*.sln.docstates
+
+# Logs
+*.log
+
+# Test / coverage
+TestResults/
+coverage/
+coverage.*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Publish / temp
+publish/
+out/
+artifacts/
+
+# Local secrets / env
+.env
+.env.*
+appsettings.*.local.json
+appsettings.*.Local.json
+appsettings.*.Secrets.json
+appsettings.*.Development.json
+
+# Optional local tooling files
+.vscode/

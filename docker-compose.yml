@@ -1,0 +1,117 @@
+services:
+  catalogdb:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_DB: ${CATALOG_POSTGRES_DB:-CatalogDb}
+    ports:
+      - "5434:5432"
+    command: ["postgres", "-c", "listen_addresses=*"]
+    volumes:
+      - catalogdb_data:/var/lib/postgresql/data
+    networks:
+      - auction-net
+
+  catalogapi:
+    build:
+      context: ./CatalogService
+      dockerfile: CatalogService.Api/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "5000:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__DefaultConnection: Host=catalogdb;Port=5432;Database=${CATALOG_POSTGRES_DB:-CatalogDb};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-change-me}
+    depends_on:
+      - catalogdb
+    networks:
+      - auction-net
+
+  biddingdb:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_DB: ${BIDDING_POSTGRES_DB:-BiddingDb}
+    ports:
+      - "5435:5432"
+    command: ["postgres", "-c", "listen_addresses=*"]
+    volumes:
+      - biddingdb_data:/var/lib/postgresql/data
+    networks:
+      - auction-net
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.1
+    restart: unless-stopped
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - auction-net
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    restart: unless-stopped
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9093,EXTERNAL://localhost:9092
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9093,EXTERNAL://0.0.0.0:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+    networks:
+      - auction-net
+
+  biddingapi:
+    build:
+      context: ./BiddingService
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "5001:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__DefaultConnection: Host=biddingdb;Port=5432;Database=${BIDDING_POSTGRES_DB:-BiddingDb};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-change-me}
+      Kafka__BootstrapServers: kafka:9093
+    depends_on:
+      - biddingdb
+      - kafka
+    networks:
+      - auction-net
+
+  realtimeapi:
+    build:
+      context: ./RealtimeService/RealtimeService.Api
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "5102:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      Kafka__BootstrapServers: kafka:9093
+    depends_on:
+      - kafka
+    networks:
+      - auction-net
+
+volumes:
+  catalogdb_data:
+  biddingdb_data:
+
+networks:
+  auction-net:
+    name: auction-net
