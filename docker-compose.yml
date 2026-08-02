@@ -21,7 +21,7 @@ services:
     restart: unless-stopped
     ports:
       - "5000:8080"
-      - "5003:8081" # gRPC port
+      - "5003:8081"
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__DefaultConnection: Host=catalogdb;Port=5432;Database=${CATALOG_POSTGRES_DB:-CatalogDb};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-change-me}
@@ -42,6 +42,32 @@ services:
     command: ["postgres", "-c", "listen_addresses=*"]
     volumes:
       - biddingdb_data:/var/lib/postgresql/data
+    networks:
+      - auction-net
+
+  auctiondb:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_DB: ${AUCTION_POSTGRES_DB:-AuctionDb}
+    ports:
+      - "5436:5432"
+    command: ["postgres", "-c", "listen_addresses=*"]
+    volumes:
+      - auctiondb_data:/var/lib/postgresql/data
+    networks:
+      - auction-net
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
     networks:
       - auction-net
 
@@ -94,6 +120,26 @@ services:
     networks:
       - auction-net
 
+  auctionapi:
+    build:
+      context: ./AuctionService
+      dockerfile: AuctionService.Api/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "5004:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: Host=auctiondb;Port=5432;Database=${AUCTION_POSTGRES_DB:-AuctionDb};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-change-me}
+      Redis__Configuration: redis:6379
+      Kafka__BootstrapServers: kafka:9093
+    depends_on:
+      - auctiondb
+      - redis
+      - kafka
+    networks:
+      - auction-net
+
   realtimeapi:
     build:
       context: ./RealtimeService/RealtimeService.Api
@@ -118,7 +164,7 @@ services:
       - ACCEPT_EULA=Y
       - SEQ_FIRSTRUN_NOAUTHENTICATION=true
     ports:
-      - "5341:80"  
+      - "5341:80"
     networks:
       - auction-net
 
@@ -132,18 +178,21 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
-      SEQ_URL: http://seq:80 
+      SEQ_URL: http://seq:80
     depends_on:
       - catalogapi
       - biddingapi
+      - auctionapi
       - realtimeapi
-      - seq 
+      - seq
     networks:
       - auction-net
 
 volumes:
   catalogdb_data:
   biddingdb_data:
+  auctiondb_data:
+  redis_data:
 
 networks:
   auction-net:
