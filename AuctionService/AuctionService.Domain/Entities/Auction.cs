@@ -7,6 +7,7 @@ public class Auction : EntityBase
 {
     public Guid ProductId { get; private set; }
     public Guid SellerId { get; private set; }
+    public Guid? HighestBidderId { get; private set; }
     public decimal StartingPrice { get; private set; }
     public decimal CurrentPrice { get; private set; }
     public DateTime StartTime { get; private set; }
@@ -26,11 +27,12 @@ public class Auction : EntityBase
         Status = AuctionStatus.Pending;
     }
 
-    public void UpdatePrice(decimal newPrice)
+    public void UpdatePrice(decimal newPrice, Guid bidderId)
     {
         if (newPrice > CurrentPrice)
         {
             CurrentPrice = newPrice;
+            HighestBidderId = bidderId;
         }
     }
 

@@ -5,6 +5,8 @@ using AuctionService.Infrastructure.Caching;
 using AuctionService.Domain.Repositories;
 using AuctionService.Application.Common.Interfaces;
 using AuctionService.Application.Features.Auctions.Commands.CreateAuction;
+using AuctionService.Infrastructure.BackgroundJobs;
+using AuctionService.Infrastructure.BackgroundServices;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,6 +27,7 @@ builder.Services.AddScoped<IOutboxRepository, OutboxRepository>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IAuctionCacheService, AuctionCacheService>();
 builder.Services.AddHostedService<AuctionOutboxPublisherBackgroundService>();
+builder.Services.AddHostedService<AuctionBidConsumerBackgroundService>();
 
 builder.Services.AddMediatR(cfg => 
     cfg.RegisterServicesFromAssembly(typeof(CreateAuctionCommand).Assembly));
