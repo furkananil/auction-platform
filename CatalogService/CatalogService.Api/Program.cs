@@ -3,10 +3,26 @@ using CatalogService.Infrastructure.Persistence;
 using CatalogService.Infrastructure.Persistence.Repositories;
 using CatalogService.Domain.Repositories;
 using CatalogService.Application.Features.Products.Commands.CreateProduct;
+using CatalogService.Api.Services;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.ListenAnyIP(8080, listenOptions =>
+    {
+        listenOptions.Protocols = HttpProtocols.Http1;
+    });
+
+    options.ListenAnyIP(8081, listenOptions =>
+    {
+        listenOptions.Protocols = HttpProtocols.Http2;
+    });
+});
+
 builder.Services.AddControllers();
+builder.Services.AddGrpc();
 builder.Services.AddDistributedMemoryCache();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -36,5 +52,6 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
+app.MapGrpcService<CatalogGrpcService>();
 
 app.Run();

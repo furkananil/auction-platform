@@ -18,7 +18,14 @@ public class BidsController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> PlaceBid([FromBody] PlaceBidCommand command)
     {
-        var result = await _mediator.Send(command);
-        return Ok(result);
+        try
+        {
+            var result = await _mediator.Send(command);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
     }
 }

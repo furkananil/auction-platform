@@ -12,19 +12,29 @@ public class PlaceBidCommandHandler : IRequestHandler<PlaceBidCommand, Guid>
     private readonly IBidRepository _bidRepository;
     private readonly IOutboxRepository _outboxRepository;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ICatalogGrpcClient _catalogGrpcClient;
 
     public PlaceBidCommandHandler(
         IBidRepository bidRepository, 
         IOutboxRepository outboxRepository, 
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        ICatalogGrpcClient catalogGrpcClient)
     {
         _bidRepository = bidRepository;
         _outboxRepository = outboxRepository;
         _unitOfWork = unitOfWork;
+        _catalogGrpcClient = catalogGrpcClient;
     }
 
     public async Task<Guid> Handle(PlaceBidCommand request, CancellationToken cancellationToken)
     {
+        var productExists = await _catalogGrpcClient.CheckProductExistsAsync(request.AuctionId, cancellationToken);
+        
+        if (!productExists)
+        {
+            throw new KeyNotFoundException("Auction/Product not found in Catalog Service.");
+        }
+
         var bid = new Bid(
             request.AuctionId, 
             request.BidderId, 

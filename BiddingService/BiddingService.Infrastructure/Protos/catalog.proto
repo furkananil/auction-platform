@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+option csharp_namespace = "CatalogService.Api.Protos";
+
+service CatalogGrpc {
+  rpc CheckProductExists (ProductRequest) returns (ProductResponse);
+}
+
+message ProductRequest {
+  string productId = 1;
+}
+
+message ProductResponse {
+  bool exists = 1;
+}

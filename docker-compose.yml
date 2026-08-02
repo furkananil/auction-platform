@@ -21,6 +21,7 @@ services:
     restart: unless-stopped
     ports:
       - "5000:8080"
+      - "5003:8081" # gRPC port
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__DefaultConnection: Host=catalogdb;Port=5432;Database=${CATALOG_POSTGRES_DB:-CatalogDb};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-change-me}
@@ -86,6 +87,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__DefaultConnection: Host=biddingdb;Port=5432;Database=${BIDDING_POSTGRES_DB:-BiddingDb};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-change-me}
       Kafka__BootstrapServers: kafka:9093
+      GrpcSettings__CatalogUrl: http://catalogapi:8081
     depends_on:
       - biddingdb
       - kafka
@@ -108,6 +110,18 @@ services:
     networks:
       - auction-net
 
+  seq:
+    image: datalust/seq:latest
+    restart: unless-stopped
+    container_name: auction-seq
+    environment:
+      - ACCEPT_EULA=Y
+      - SEQ_FIRSTRUN_NOAUTHENTICATION=true
+    ports:
+      - "5341:80"  
+    networks:
+      - auction-net
+
   apigateway:
     build:
       context: ./ApiGateway/ApiGateway.Api
@@ -118,10 +132,12 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
+      SEQ_URL: http://seq:80 
     depends_on:
       - catalogapi
       - biddingapi
       - realtimeapi
+      - seq 
     networks:
       - auction-net
 
