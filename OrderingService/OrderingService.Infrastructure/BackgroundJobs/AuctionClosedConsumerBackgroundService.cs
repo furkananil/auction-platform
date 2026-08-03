@@ -6,6 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Confluent.Kafka;
 using System.Text.Json;
 using OrderingService.Domain.Entities;
+using OrderingService.Domain.Enums;
 using OrderingService.Application.Common.Interfaces;
 using OrderingService.Infrastructure.Events;
 
@@ -44,6 +45,7 @@ public class AuctionClosedConsumerBackgroundService : BackgroundService
                 {
                     using var scope = _serviceProvider.CreateScope();
                     var repository = scope.ServiceProvider.GetRequiredService<IOrderRepository>();
+                    var paymentClient = scope.ServiceProvider.GetRequiredService<IPaymentGrpcClient>();
 
                     var order = new Order(
                         closedEvent.AuctionId,
@@ -52,6 +54,15 @@ public class AuctionClosedConsumerBackgroundService : BackgroundService
                         closedEvent.FinalPrice);
 
                     await repository.AddAsync(order, stoppingToken);
+                    await repository.SaveChangesAsync(stoppingToken);
+
+                    var paymentSuccess = await paymentClient.ProcessPaymentAsync(
+                        order.Id.ToString(), 
+                        order.BuyerId.ToString(), 
+                        (double)order.TotalAmount, 
+                        stoppingToken);
+
+                    order.UpdateStatus(paymentSuccess ? OrderStatus.Paid : OrderStatus.Failed);
                     await repository.SaveChangesAsync(stoppingToken);
                 }
             }

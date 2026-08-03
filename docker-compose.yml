@@ -120,6 +120,71 @@ services:
     networks:
       - auction-net
 
+  orderingdb:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_DB: ${ORDERING_POSTGRES_DB:-OrderingDb}
+    ports:
+      - "5437:5432"
+    command: ["postgres", "-c", "listen_addresses=*"]
+    volumes:
+      - orderingdb_data:/var/lib/postgresql/data
+    networks:
+      - auction-net
+
+  paymentdb:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_DB: ${PAYMENT_POSTGRES_DB:-PaymentDb}
+    ports:
+      - "5438:5432"
+    command: ["postgres", "-c", "listen_addresses=*"]
+    volumes:
+      - paymentdb_data:/var/lib/postgresql/data
+    networks:
+      - auction-net
+
+  orderingapi:
+    build:
+      context: ./OrderingService
+      dockerfile: OrderingService.Api/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "5005:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: Host=orderingdb;Port=5432;Database=${ORDERING_POSTGRES_DB:-OrderingDb};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-change-me}
+      GrpcSettings__PaymentUrl: http://paymentapi:8081
+    depends_on:
+      - orderingdb
+      - paymentapi
+    networks:
+      - auction-net
+
+  paymentapi:
+    build:
+      context: ./PaymentService
+      dockerfile: PaymentService.Api/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "5006:8080"
+      - "5007:8081"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: Host=paymentdb;Port=5432;Database=${PAYMENT_POSTGRES_DB:-PaymentDb};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-change-me}
+    depends_on:
+      - paymentdb
+    networks:
+      - auction-net
+
   auctionapi:
     build:
       context: ./AuctionService
@@ -179,9 +244,17 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
       SEQ_URL: http://seq:80
+      ReverseProxy__Clusters__catalog-cluster__Destinations__destination1__Address: http://catalogapi:8080
+      ReverseProxy__Clusters__bidding-cluster__Destinations__destination1__Address: http://biddingapi:8080
+      ReverseProxy__Clusters__ordering-cluster__Destinations__destination1__Address: http://orderingapi:8080
+      ReverseProxy__Clusters__payment-cluster__Destinations__destination1__Address: http://paymentapi:8080
+      ReverseProxy__Clusters__auction-cluster__Destinations__destination1__Address: http://auctionapi:8080
+      ReverseProxy__Clusters__realtime-cluster__Destinations__destination1__Address: http://realtimeapi:8080
     depends_on:
       - catalogapi
       - biddingapi
+      - orderingapi
+      - paymentapi
       - auctionapi
       - realtimeapi
       - seq
@@ -191,6 +264,8 @@ services:
 volumes:
   catalogdb_data:
   biddingdb_data:
+  orderingdb_data:
+  paymentdb_data:
   auctiondb_data:
   redis_data:
 
