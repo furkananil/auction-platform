@@ -28,11 +28,11 @@ public class PlaceBidCommandHandler : IRequestHandler<PlaceBidCommand, Guid>
 
     public async Task<Guid> Handle(PlaceBidCommand request, CancellationToken cancellationToken)
     {
-        var productExists = await _catalogGrpcClient.CheckProductExistsAsync(request.AuctionId, cancellationToken);
+        var productExists = await _catalogGrpcClient.CheckProductExistsAsync(request.ProductId, cancellationToken);
         
         if (!productExists)
         {
-            throw new KeyNotFoundException("Auction/Product not found in Catalog Service.");
+            throw new KeyNotFoundException("Product not found in Catalog Service.");
         }
 
         var bid = new Bid(

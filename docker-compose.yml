@@ -162,6 +162,7 @@ services:
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__DefaultConnection: Host=orderingdb;Port=5432;Database=${ORDERING_POSTGRES_DB:-OrderingDb};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-change-me}
       GrpcSettings__PaymentUrl: http://paymentapi:8081
+      Kafka__BootstrapServers: kafka:9093
     depends_on:
       - orderingdb
       - paymentapi

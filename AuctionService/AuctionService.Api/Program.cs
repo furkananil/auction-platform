@@ -26,6 +26,7 @@ builder.Services.AddScoped<IAuctionRepository, AuctionRepository>();
 builder.Services.AddScoped<IOutboxRepository, OutboxRepository>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IAuctionCacheService, AuctionCacheService>();
+builder.Services.AddHostedService<AuctionClosingBackgroundService>();
 builder.Services.AddHostedService<AuctionOutboxPublisherBackgroundService>();
 builder.Services.AddHostedService<AuctionBidConsumerBackgroundService>();
 
@@ -40,7 +41,11 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
+
 app.UseAuthorization();
 app.MapControllers();
 
