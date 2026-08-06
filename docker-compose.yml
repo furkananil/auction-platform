@@ -102,6 +102,23 @@ services:
     networks:
       - auction-net
 
+  rabbitmq:
+    image: rabbitmq:3-management
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: notification
+      RABBITMQ_DEFAULT_PASS: notification123
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - auction-net
+
   biddingapi:
     build:
       context: ./BiddingService
@@ -117,6 +134,41 @@ services:
     depends_on:
       - biddingdb
       - kafka
+    networks:
+      - auction-net
+
+  notificationapi:
+    build:
+      context: ./NotificationService
+      dockerfile: NotificationService.Api/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "5008:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+      - RABBITMQ__HOST=rabbitmq
+      - RABBITMQ__USERNAME=notification
+      - RABBITMQ__PASSWORD=notification123
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - auction-net
+
+  notificationworker:
+    build:
+      context: ./NotificationService
+      dockerfile: NotificationDelivery.Worker/Dockerfile
+    restart: unless-stopped
+    environment:
+      - DOTNET_ENVIRONMENT=Development
+      - RABBITMQ__HOST=rabbitmq
+      - RABBITMQ__USERNAME=notification
+      - RABBITMQ__PASSWORD=notification123
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
     networks:
       - auction-net
 
@@ -251,6 +303,9 @@ services:
       ReverseProxy__Clusters__payment-cluster__Destinations__destination1__Address: http://paymentapi:8080
       ReverseProxy__Clusters__auction-cluster__Destinations__destination1__Address: http://auctionapi:8080
       ReverseProxy__Clusters__realtime-cluster__Destinations__destination1__Address: http://realtimeapi:8080
+      ReverseProxy__Routes__notification-route__ClusterId: notification-cluster
+      ReverseProxy__Routes__notification-route__Match__Path: /api/notifications/{**catch-all}
+      ReverseProxy__Clusters__notification-cluster__Destinations__destination1__Address: http://notificationapi:8080
     depends_on:
       - catalogapi
       - biddingapi
@@ -258,6 +313,7 @@ services:
       - paymentapi
       - auctionapi
       - realtimeapi
+      - notificationapi
       - seq
     networks:
       - auction-net
@@ -269,6 +325,7 @@ volumes:
   paymentdb_data:
   auctiondb_data:
   redis_data:
+  rabbitmq_data:
 
 networks:
   auction-net:
