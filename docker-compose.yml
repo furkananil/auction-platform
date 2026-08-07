@@ -172,6 +172,40 @@ services:
     networks:
       - auction-net
 
+  identitydb:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_DB: ${IDENTITY_POSTGRES_DB:-IdentityDb}
+    ports:
+      - "5439:5432"
+    command: ["postgres", "-c", "listen_addresses=*"]
+    volumes:
+      - identitydb_data:/var/lib/postgresql/data
+    networks:
+      - auction-net
+
+  identityapi:
+    build:
+      context: ./IdentityService
+      dockerfile: IdentityService.Api/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "5009:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: Host=identitydb;Port=5432;Database=${IDENTITY_POSTGRES_DB:-IdentityDb};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-change-me}
+      Jwt__Key: ${JWT_KEY:-super_secret_key_for_auction_microservices_2026}
+      Jwt__Issuer: ${JWT_ISSUER:-AuctionIdentityService}
+      Jwt__Audience: ${JWT_AUDIENCE:-AuctionMicroservices}
+    depends_on:
+      - identitydb
+    networks:
+      - auction-net
+
   orderingdb:
     image: postgres:16
     restart: unless-stopped
@@ -306,6 +340,9 @@ services:
       ReverseProxy__Routes__notification-route__ClusterId: notification-cluster
       ReverseProxy__Routes__notification-route__Match__Path: /api/notifications/{**catch-all}
       ReverseProxy__Clusters__notification-cluster__Destinations__destination1__Address: http://notificationapi:8080
+      ReverseProxy__Routes__identity-route__ClusterId: identity-cluster
+      ReverseProxy__Routes__identity-route__Match__Path: /api/auth/{**catch-all}
+      ReverseProxy__Clusters__identity-cluster__Destinations__destination1__Address: http://identityapi:8080
     depends_on:
       - catalogapi
       - biddingapi
@@ -313,6 +350,7 @@ services:
       - paymentapi
       - auctionapi
       - realtimeapi
+      - identityapi
       - notificationapi
       - seq
     networks:
@@ -324,6 +362,7 @@ volumes:
   orderingdb_data:
   paymentdb_data:
   auctiondb_data:
+  identitydb_data:
   redis_data:
   rabbitmq_data:
 

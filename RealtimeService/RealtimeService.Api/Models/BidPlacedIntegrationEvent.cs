@@ -1,6 +1,6 @@
 namespace RealtimeService.Api.Models;
 
-public record BidPlacedEvent(
+public record BidPlacedIntegrationEvent(
     Guid BidId,
     Guid AuctionId,
     Guid BidderId,

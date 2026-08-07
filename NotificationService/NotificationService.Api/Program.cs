@@ -1,4 +1,5 @@
 using MassTransit;
+using NotificationService.Api.BackgroundJobs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -6,6 +7,7 @@ builder.Services.AddLogging(logging => logging.AddConsole());
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddHostedService<OrderPaidKafkaConsumerBackgroundService>();
 
 builder.Services.AddMassTransit(x =>
 {

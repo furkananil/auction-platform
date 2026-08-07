@@ -62,8 +62,21 @@ public class AuctionClosedConsumerBackgroundService : BackgroundService
                         (double)order.TotalAmount, 
                         stoppingToken);
 
-                    order.UpdateStatus(paymentSuccess ? OrderStatus.Paid : OrderStatus.Failed);
-                    await repository.SaveChangesAsync(stoppingToken);
+                    if (paymentSuccess)
+                    {
+                        order.UpdateStatus(OrderStatus.Paid);
+                        await repository.SaveChangesAsync(stoppingToken);
+
+                        var producerConfig = new ProducerConfig { BootstrapServers = _consumerConfig.BootstrapServers };
+                        using var producer = new ProducerBuilder<Null, string>(producerConfig).Build();
+                        
+                        var orderPaidEvent = new OrderPaidIntegrationEvent(order.Id, order.BuyerId, order.TotalAmount);
+                        
+                        await producer.ProduceAsync("order-events", new Message<Null, string> 
+                        { 
+                            Value = JsonSerializer.Serialize(orderPaidEvent) 
+                        }, stoppingToken);
+                    }
                 }
             }
             catch (Exception)

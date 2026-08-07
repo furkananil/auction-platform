@@ -1,42 +1,24 @@
-namespace RealtimeService.Api.BackgroundServices;
-
+namespace RealTimeService.Api.BackgroundJobs;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.SignalR;
 using Confluent.Kafka;
 using System.Text.Json;
 using RealtimeService.Api.Hubs;
 using RealtimeService.Api.Models;
 
-public class KafkaConsumerBackgroundService : BackgroundService
+public class LiveBiddingKafkaConsumerBackgroundService : BackgroundService
 {
     private readonly IHubContext<AuctionHub> _hubContext;
-    private readonly ILogger<KafkaConsumerBackgroundService> _logger;
     private readonly ConsumerConfig _consumerConfig;
     private const string TopicName = "bidding-events";
 
-    public KafkaConsumerBackgroundService(
-        IHubContext<AuctionHub> hubContext,
-        IConfiguration configuration,
-        ILogger<KafkaConsumerBackgroundService> logger)
+    public LiveBiddingKafkaConsumerBackgroundService(IHubContext<AuctionHub> hubContext, IConfiguration configuration)
     {
         _hubContext = hubContext;
-        _logger = logger;
-
-        var bootstrapServers = configuration["Kafka:BootstrapServers"];
-        if (string.IsNullOrWhiteSpace(bootstrapServers))
-        {
-            bootstrapServers = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true"
-                ? "kafka:9093"
-                : "localhost:9092";
-        }
-
-        _logger.LogInformation("Kafka consumer bootstrap server: {BootstrapServers}", bootstrapServers);
-
         _consumerConfig = new ConsumerConfig
         {
-            BootstrapServers = bootstrapServers,
+            BootstrapServers = configuration["Kafka:BootstrapServers"],
             GroupId = "realtime-service-group",
             AutoOffsetReset = AutoOffsetReset.Earliest
         };
@@ -52,25 +34,19 @@ public class KafkaConsumerBackgroundService : BackgroundService
             try
             {
                 var consumeResult = consumer.Consume(stoppingToken);
-                if (consumeResult != null)
-                {
-                    var bidEvent = JsonSerializer.Deserialize<BidPlacedEvent>(consumeResult.Message.Value);
+                if (consumeResult == null) continue;
 
-                    if (bidEvent != null)
-                    {
-                        await _hubContext.Clients
-                            .Group(bidEvent.AuctionId.ToString())
-                            .SendAsync("ReceiveNewBid", bidEvent, cancellationToken: stoppingToken);
-                    }
+                var bidEvent = JsonSerializer.Deserialize<BidPlacedIntegrationEvent>(consumeResult.Message.Value);
+                
+                if (bidEvent != null)
+                {
+                    await _hubContext.Clients
+                        .Group(bidEvent.AuctionId.ToString())
+                        .SendAsync("ReceiveNewBid", bidEvent, cancellationToken: stoppingToken);
                 }
             }
-            catch (OperationCanceledException)
+            catch (Exception)
             {
-                break;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Kafka consumer loop failed while reading topic {TopicName}", TopicName);
                 await Task.Delay(1000, stoppingToken);
             }
         }
