@@ -121,8 +121,8 @@ services:
 
   biddingapi:
     build:
-      context: ./BiddingService
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: BiddingService/Dockerfile
     restart: unless-stopped
     ports:
       - "5001:8080"

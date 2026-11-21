@@ -7,6 +7,10 @@ using BiddingService.Application.Common.Interfaces;
 using BiddingService.Infrastructure.BackgroundJobs;
 using BiddingService.Application.Features.Bids.Commands.PlaceBid;
 using CatalogService.Api.Protos;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+using Shared.Contracts;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -29,6 +33,25 @@ builder.Services.AddGrpcClient<CatalogGrpc.CatalogGrpcClient>(o =>
 
 builder.Services.AddScoped<ICatalogGrpcClient, BiddingService.Infrastructure.Clients.CatalogGrpcClient>();
 
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = builder.Configuration["Jwt:Issuer"],
+            ValidAudience = builder.Configuration["Jwt:Audience"],
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!)),
+            ClockSkew = TimeSpan.FromSeconds(30)
+        };
+    });
+
+builder.Services.AddAuthorization();
+builder.Services.AddCurrentUserService();
 
 var app = builder.Build();
 
@@ -45,6 +68,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseAuthentication(); 
 app.UseAuthorization();
 app.MapControllers();
 
